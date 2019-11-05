@@ -17,7 +17,8 @@ from jupyter_core.application import NoStart
 from jupyter_server.serverapp import (
     ServerApp, 
     list_running_servers,
-    JupyterPasswordApp
+    JupyterPasswordApp,
+    JupyterServerStopApp
 )
 from jupyter_server.auth.security import passwd_check
 
@@ -122,3 +123,4 @@ def test_server_password(tmp_path):
 def test_list_running_servers(serverapp, app):
     servers = list(list_running_servers(serverapp.runtime_dir))
     assert len(servers) >= 1
+
