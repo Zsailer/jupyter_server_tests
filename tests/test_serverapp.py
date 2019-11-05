@@ -118,3 +118,7 @@ def test_server_password(tmp_path):
         assert sv.password != ''
         passwd_check(sv.password, password)
 
+
+def test_list_running_servers(serverapp, app):
+    servers = list(list_running_servers(serverapp.runtime_dir))
+    assert len(servers) >= 1
