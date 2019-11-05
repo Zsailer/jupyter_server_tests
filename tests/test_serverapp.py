@@ -52,38 +52,49 @@ def test_root_dir(tmp_path):
     assert app.root_dir == str(tmp_path)
 
 
-def test_no_create_root_dir(tmp_path):
-    root_dir = tmp_path / 'notebooks'
+# Build a list of invalid paths
+@pytest.fixture(
+    params=[
+        ('notebooks',),
+        ('root', 'dir', 'is', 'missing'),
+        ('test.txt',)
+    ]
+)
+def invalid_root_dir(tmp_path, request):
+    path = tmp_path.joinpath(*request.param)
+    # If the path is a file, create it. 
+    if os.path.splitext(path)[1] != '':
+        path.write_text('')
+    return str(path)
+
+
+def test_invalid_root_dir(invalid_root_dir):
     app = ServerApp()
     with pytest.raises(TraitError):
-        app.root_dir = str(root_dir)
+        app.root_dir = invalid_root_dir
 
+@pytest.fixture(
+    params=[
+        ('/',),
+        ('first-level',),
+        ('first-level', 'second-level')
+    ]
+)
+def valid_root_dir(tmp_path, request):
+    path = tmp_path.joinpath(*request.param)
+    if not path.exists():
+        # Create path in temporary directory
+        path.mkdir(parents=True)
+    return str(path)
 
-def test_missing_root_dir(tmp_path):
-    root_dir = tmp_path.joinpath(tmp_path, 'root', 'dir', 'is', 'missing')
-    app = ServerApp()
-    with pytest.raises(TraitError):
-        app.root_dir = str(root_dir)
-
-
-def test_invalid_root_dir(tmp_path):
-    file_name = tmp_path / 'test.txt'
-    file_name.write_text('')
-    app = ServerApp()
-    with pytest.raises(TraitError):
-        app.root_dir = str(file_name)
-
-
-def test_root_dir_with_slash(tmp_path):
-    root_dir = tmp_path / ''
-    app = ServerApp(root_dir=str(root_dir))
-    assert app.root_dir.endswith(os.sep) is False
-
-
-def test_root_dir_root():
-    root = pathlib.Path(os.sep).root
-    app = ServerApp(root_dir=str(root))
-    assert app.root_dir == str(root)
+def test_valid_root_dir(valid_root_dir):
+    app = ServerApp(root_dir=valid_root_dir)
+    root_dir = valid_root_dir
+    # If nested path, the last slash should 
+    # be stripped by the root_dir trait.
+    if root_dir != '/':
+        root_dir = valid_root_dir.rstrip('/') 
+    assert app.root_dir == root_dir
 
 
 def test_generate_config(tmp_path):
@@ -96,7 +107,9 @@ def test_generate_config(tmp_path):
 
 def test_server_password(tmp_path):
     password = 'secret'
-    with patch.dict('os.environ', {'JUPYTER_CONFIG_DIR': str(tmp_path)}), patch.object(getpass, 'getpass', return_value=password):
+    with patch.dict(
+        'os.environ', {'JUPYTER_CONFIG_DIR': str(tmp_path)}
+        ), patch.object(getpass, 'getpass', return_value=password):
         app = JupyterPasswordApp(log_level=logging.ERROR)
         app.initialize([])
         app.start()
@@ -104,3 +117,4 @@ def test_server_password(tmp_path):
         sv.load_config_file()
         assert sv.password != ''
         passwd_check(sv.password, password)
+
