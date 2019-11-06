@@ -3,3 +3,5 @@
 ![](https://github.com/Zsailer/jupyter_server_tests/workflows/Tests/badge.svg)
 
 **This repo is only temporary**—the plan is to eventually merge this repo into [jupyter/jupyter_server](https://github.com/jupyter/jupyter_server)
+
+These tests currently depend on [this branch](https://github.com/Zsailer/jupyter_server/tree/httpserver) of Jupyter Server.
