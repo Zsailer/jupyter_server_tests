@@ -9,9 +9,8 @@ from jupyter_server.serverapp import ServerApp
 
 pytest_plugins = ("pytest_tornado",)
 
-
 @pytest.fixture
-def serverapp(tmp_path):
+def serverapp(tmp_path, http_port):
     def tmp(*parts):
         path = tmp_path.joinpath(*parts)
         if not path.exists():
@@ -29,10 +28,10 @@ def serverapp(tmp_path):
 
     token = hexlify(os.urandom(4)).decode('ascii')
 
-    url_prefix = '/a%40b/'
+    url_prefix = '/'
 
     app = ServerApp(
-        port=12341,
+        port=http_port,
         port_retries=0,
         open_browser=False,
         config_dir=config_dir,
@@ -47,12 +46,20 @@ def serverapp(tmp_path):
     app.init_signal = lambda : None
     app.log.propagate = True
     app.log.handlers = []
-    app.initialize(argv=[])
+    # Initialize app without httpserver
+    app.initialize(argv=[], new_httpserver=False)
     app.log.propagate = True
     app.log.handlers = []
-    app.write_server_info_file()
+    # Start app without ioloop
+    app.start_app()
     return app
+
 
 @pytest.fixture
 def app(serverapp):
     return serverapp.web_app
+
+
+@pytest.fixture
+def auth_header(serverapp):
+    return {'Authorization': 'token {token}'.format(token=serverapp.token)}
