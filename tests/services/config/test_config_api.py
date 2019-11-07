@@ -61,7 +61,7 @@ def test_modify(fetch):
     assert json.loads(response2.body) == diff
     
 
-@pytest.mark.get_test
+@pytest.mark.gen_test
 def test_get_unknown(fetch):
     response = yield fetch(
         'api', 'config', 'nonexistant',

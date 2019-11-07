@@ -2,6 +2,9 @@ import os
 import pytest
 from binascii import hexlify
 
+import urllib.parse
+from tornado.escape import url_escape
+
 from traitlets.config import Config
 
 from jupyter_server.serverapp import ServerApp
@@ -68,9 +71,18 @@ def auth_header(serverapp):
 @pytest.fixture
 def fetch(http_client, auth_header, base_url):
     """fetch fixture that handles auth, base_url, and path"""
-    def client_fetch(*parts, headers={}, **kwargs):
-        url = url_path_join(base_url, *parts)
+    def client_fetch(*parts, headers={}, params={}, **kwargs):
+        # Handle URL strings
+        path = url_escape(url_path_join(*parts), plus=False)
+        urlparts = urllib.parse.urlparse(base_url)
+        urlparts = urlparts._replace(
+            path=path,
+            query=urllib.parse.urlencode(params),
+        )
+        url = urlparts.geturl()
+        # Add auth keys to header
         headers.update(auth_header)
+        # Make request.
         print(url)
         return http_client.fetch(url, headers=headers, **kwargs)
     return client_fetch

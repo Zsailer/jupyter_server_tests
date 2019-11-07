@@ -1,8 +1,9 @@
 import json
 import pathlib
 import pytest
+from urllib.parse import ParseResult, urlunparse
 
-from tornado.escape import url_escape
+import tornado
 
 from nbformat import writes, from_dict
 from nbformat.v4 import (
@@ -36,9 +37,14 @@ dirs = [
 
 
 @pytest.fixture
-def contents(tmp_path, serverapp):
+def contents_dir(tmp_path, serverapp):
+    return tmp_path / serverapp.root_dir
+
+
+@pytest.fixture
+def contents(contents_dir):
     for d, name in dirs:
-        p = tmp_path / serverapp.root_dir / d
+        p = contents_dir / d
         p.mkdir(parents=True, exist_ok=True)
 
         # Create a notebook
@@ -58,14 +64,10 @@ def contents(tmp_path, serverapp):
 
 
 @pytest.mark.gen_test
-@pytest.mark.parametrize(
-    'path,name',
-    dirs
-)
-def test_list_notebooks(fetch, contents, path, name):
-    url_path = url_escape(path, plus=False)
-    response = yield fetch(
-        'api', 'contents', url_path,
+@pytest.mark.parametrize('path,name', dirs)
+async def test_list_notebooks(fetch, contents, path, name):
+    response = await fetch(
+        'api', 'contents', path,
         method='GET',
     )
     data = json.loads(response.body)
@@ -73,4 +75,137 @@ def test_list_notebooks(fetch, contents, path, name):
     assert len(nbs) > 0
     assert name+'.ipynb' in [n['name'] for n in nbs]
     assert url_path_join(path, name+'.ipynb') in [n['path'] for n in nbs]
+
+
+@pytest.mark.gen_test
+@pytest.mark.parametrize('path,name', dirs)
+async def test_get_dir_no_contents(fetch, contents, path, name):
+    response = await fetch(
+        'api', 'contents', path,
+        method='GET',
+        params=dict(
+            content='0',
+        )
+    )
+    model = json.loads(response.body)
+    assert model['path'] == path
+    assert model['type'] == 'directory'
+    assert 'content' in model
+    assert model['content'] == None
+
+
+@pytest.mark.gen_test
+async def test_list_nonexistant_dir(fetch, contents):
+    with pytest.raises(tornado.httpclient.HTTPClientError):
+        await fetch(
+            'api', 'contents', 'nonexistant',
+            method='GET',
+        )
+
+
+@pytest.mark.gen_test
+@pytest.mark.parametrize('path,name', dirs)
+async def test_get_nb_contents(fetch, contents, path, name):
+    nbname = name+'.ipynb'
+    nbpath = (path + '/' + nbname).lstrip('/')
+    r = await fetch(
+        'api', 'contents', nbpath,
+        method='GET',
+        params=dict(content='1') 
+    )
+    model = json.loads(r.body)
+    assert model['name'] == nbname
+    assert model['path'] == nbpath
+    assert model['type'] == 'notebook'
+    assert 'content' in model
+    assert model['format'] == 'json'
+    assert 'metadata' in model['content']
+    assert isinstance(model['content']['metadata'], dict)
+
+
+@pytest.mark.gen_test
+@pytest.mark.parametrize('path,name', dirs)
+async def test_get_nb_no_contents(fetch, contents, path, name):
+    nbname = name+'.ipynb'
+    nbpath = (path + '/' + nbname).lstrip('/')
+    r = await fetch(
+        'api', 'contents', nbpath,
+        method='GET',
+        params=dict(content='0') 
+    )
+    model = json.loads(r.body)
+    assert model['name'] == nbname
+    assert model['path'] == nbpath
+    assert model['type'] == 'notebook'
+    assert 'content' in model
+    assert model['content'] == None
+
+
+@pytest.mark.gen_test
+async def test_get_nb_invalid(contents_dir, fetch, contents):
+    nb = {
+        'nbformat': 4,
+        'metadata': {},
+        'cells': [{
+            'cell_type': 'wrong',
+            'metadata': {},
+        }],
+    }
+    nbpath = u'å b/Validate tést.ipynb'
+    (contents_dir / nbpath).write_text(json.dumps(nb))
+    r = await fetch(
+        'api', 'contents', nbpath,
+        method='GET',
+    )
+    model = json.loads(r.body)
+    assert model['path'] == nbpath
+    assert model['type'] == 'notebook'
+    assert 'content' in model
+    assert 'message' in model
+    assert 'validation failed' in model['message'].lower()
+
+
+@pytest.mark.gen_test
+async def test_get_contents_no_such_file(fetch):
+    with pytest.raises(tornado.httpclient.HTTPClientError):
+        await fetch(
+            'api', 'contents', 'foo/q.ipynb',
+            method='GET',
+        )
+
+
+@pytest.mark.gen_test
+@pytest.mark.parametrize('path,name', dirs)
+async def test_get_text_file_contents(fetch, contents, path, name):
+    txtname = name+'.txt'
+    txtpath = (path + '/' + txtname).lstrip('/')
+    r = await fetch(
+        'api', 'contents', txtpath,
+        method='GET',
+        params=dict(content='0') 
+    )
+    model = json.loads(r.body)
+    assert model['name'] == txtname
+    assert model['path'] == txtpath
+    assert 'content' in model
+    assert model['format'] == 'text'
+    assert model['type'] == 'file'
+    assert model['content'] == '{} text file'.format(name)
+
+    with pytest.raises(tornado.httpclient.HTTPClientError):
+        await fetch(
+            'api', 'contents', 'foo/q.txt',
+            method='GET',
+        )
+
+    with pytest.raises(tornado.httpclient.HTTPClientError):
+        await fetch(
+            'api', 'contents', 'foo/bar/baz.blob',
+            method='GET',
+            params=dict(
+                type='file',
+                format='text'
+            )
+        )
+
 
