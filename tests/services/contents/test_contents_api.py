@@ -182,9 +182,10 @@ async def test_get_text_file_contents(fetch, contents, path, name):
     r = await fetch(
         'api', 'contents', txtpath,
         method='GET',
-        params=dict(content='0') 
+        params=dict(content='1') 
     )
     model = json.loads(r.body)
+    print(model)
     assert model['name'] == txtname
     assert model['path'] == txtpath
     assert 'content' in model
