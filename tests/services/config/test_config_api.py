@@ -5,29 +5,25 @@ from jupyter_server.utils import url_path_join
 
 
 @pytest.mark.gen_test
-def test_create_retrieve_config(http_client, base_url, auth_header):
-
+def test_create_retrieve_config(fetch):
     sample = {'foo': 'bar', 'baz': 73}
-    url = url_path_join(base_url, 'api', 'config', 'example')
-    response = yield http_client.fetch(
-        url,
+    response = yield fetch(
+        'api', 'config', 'example',
         method='PUT',
-        headers=auth_header,
         body=json.dumps(sample)
     )
     assert response.code == 204
 
-    response2 = yield http_client.fetch(
-        url,
+    response2 = yield fetch(
+        'api', 'config', 'example',
         method='GET',
-        headers=auth_header,
     )
     assert response2.code == 200
     assert json.loads(response2.body) == sample
 
 
 @pytest.mark.gen_test
-def test_modify(http_client, base_url, auth_header):
+def test_modify(fetch):
     sample = {
         'foo': 'bar', 
         'baz': 73,
@@ -49,19 +45,15 @@ def test_modify(http_client, base_url, auth_header):
         'sub': {'a': 8, 'd': 9}
     }
 
-
-    url = url_path_join(base_url, 'api', 'config', 'example')
-    response = yield http_client.fetch(
-        url,
+    yield fetch(
+        'api', 'config', 'example',
         method='PUT',
-        headers=auth_header,
         body=json.dumps(sample)
     )
 
-    response2 = yield http_client.fetch(
-        url,
+    response2 = yield fetch(
+        'api', 'config', 'example',
         method='PATCH',
-        headers=auth_header,
         body=json.dumps(modified_sample)
     )
 
@@ -70,12 +62,10 @@ def test_modify(http_client, base_url, auth_header):
     
 
 @pytest.mark.get_test
-def test_get_unknown(http_client, base_url, auth_header):
-    url = url_path_join(base_url, 'api', 'config', 'nonexistant')
-    response = yield http_client.fetch(
-        url,
+def test_get_unknown(fetch):
+    response = yield fetch(
+        'api', 'config', 'nonexistant',
         method='GET',
-        headers=auth_header,
     )
     assert response.code == 200
     assert json.loads(response.body) == {}

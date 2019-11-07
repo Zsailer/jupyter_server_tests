@@ -5,7 +5,7 @@ from binascii import hexlify
 from traitlets.config import Config
 
 from jupyter_server.serverapp import ServerApp
-
+from jupyter_server.utils import url_path_join
 
 pytest_plugins = ("pytest_tornado",)
 
@@ -63,3 +63,14 @@ def app(serverapp):
 @pytest.fixture
 def auth_header(serverapp):
     return {'Authorization': 'token {token}'.format(token=serverapp.token)}
+
+
+@pytest.fixture
+def fetch(http_client, auth_header, base_url):
+    """fetch fixture that handles auth, base_url, and path"""
+    def client_fetch(*parts, headers={}, **kwargs):
+        url = url_path_join(base_url, *parts)
+        headers.update(auth_header)
+        print(url)
+        return http_client.fetch(url, headers=headers, **kwargs)
+    return client_fetch
