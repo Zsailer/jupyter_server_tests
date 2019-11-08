@@ -15,6 +15,10 @@ from jupyter_server.utils import url_path_join
 from base64 import encodebytes, decodebytes
 
 
+# Run all tests in this module using asyncio's event loop
+pytestmark = pytest.mark.asyncio
+
+
 def notebooks_only(dir_model):
     return [nb for nb in dir_model['content'] if nb['type']=='notebook']
 
@@ -65,7 +69,6 @@ def contents(contents_dir):
         blobname.write_bytes(blob)
 
 
-@pytest.mark.gen_test
 @pytest.mark.parametrize('path,name', dirs)
 async def test_list_notebooks(fetch, contents, path, name):
     response = await fetch(
@@ -79,7 +82,6 @@ async def test_list_notebooks(fetch, contents, path, name):
     assert url_path_join(path, name+'.ipynb') in [n['path'] for n in nbs]
 
 
-@pytest.mark.gen_test
 @pytest.mark.parametrize('path,name', dirs)
 async def test_get_dir_no_contents(fetch, contents, path, name):
     response = await fetch(
@@ -96,7 +98,6 @@ async def test_get_dir_no_contents(fetch, contents, path, name):
     assert model['content'] == None
 
 
-@pytest.mark.gen_test
 async def test_list_nonexistant_dir(fetch, contents):
     with pytest.raises(tornado.httpclient.HTTPClientError):
         await fetch(
@@ -105,7 +106,6 @@ async def test_list_nonexistant_dir(fetch, contents):
         )
 
 
-@pytest.mark.gen_test
 @pytest.mark.parametrize('path,name', dirs)
 async def test_get_nb_contents(fetch, contents, path, name):
     nbname = name+'.ipynb'
@@ -125,7 +125,6 @@ async def test_get_nb_contents(fetch, contents, path, name):
     assert isinstance(model['content']['metadata'], dict)
 
 
-@pytest.mark.gen_test
 @pytest.mark.parametrize('path,name', dirs)
 async def test_get_nb_no_contents(fetch, contents, path, name):
     nbname = name+'.ipynb'
@@ -143,7 +142,6 @@ async def test_get_nb_no_contents(fetch, contents, path, name):
     assert model['content'] == None
 
 
-@pytest.mark.gen_test
 async def test_get_nb_invalid(contents_dir, fetch, contents):
     nb = {
         'nbformat': 4,
@@ -167,16 +165,15 @@ async def test_get_nb_invalid(contents_dir, fetch, contents):
     assert 'validation failed' in model['message'].lower()
 
 
-@pytest.mark.gen_test
 async def test_get_contents_no_such_file(fetch):
-    with pytest.raises(tornado.httpclient.HTTPClientError):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
         await fetch(
             'api', 'contents', 'foo/q.ipynb',
             method='GET',
         )
+        assert e.code == 404
 
 
-@pytest.mark.gen_test
 @pytest.mark.parametrize('path,name', dirs)
 async def test_get_text_file_contents(fetch, contents, path, name):
     txtname = name+'.txt'
@@ -194,13 +191,14 @@ async def test_get_text_file_contents(fetch, contents, path, name):
     assert model['type'] == 'file'
     assert model['content'] == '{} text file'.format(name)
 
-    with pytest.raises(tornado.httpclient.HTTPClientError):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
         await fetch(
             'api', 'contents', 'foo/q.txt',
             method='GET',
         )
+        assert e.code == 404
 
-    with pytest.raises(tornado.httpclient.HTTPClientError):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
         await fetch(
             'api', 'contents', 'foo/bar/baz.blob',
             method='GET',
@@ -209,10 +207,10 @@ async def test_get_text_file_contents(fetch, contents, path, name):
                 format='text'
             )
         )
+        assert e.code == 400
 
 
 
-@pytest.mark.gen_test
 @pytest.mark.parametrize('path,name', dirs)
 async def test_get_binary_file_contents(fetch, contents, path, name):
     blobname = name+'.blob'
@@ -232,8 +230,43 @@ async def test_get_binary_file_contents(fetch, contents, path, name):
     data_in = name.encode('utf-8') + b'\xFF'
     assert data_in == data_out
 
-    with pytest.raises(tornado.httpclient.HTTPClientError):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
         await fetch(
             'api', 'contents', 'foo/q.txt',
             method='GET',
         )
+        assert e.code == 400
+
+
+async def test_get_bad_type(fetch):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        await fetch(
+            'api', 'contents', 'unicodé',
+            method='GET',
+            params=dict(type='file')
+        )
+        assert e.code == 400
+
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        await fetch(
+            'api', 'contents', 'unicodé/innonascii.ipynb',
+            method='GET',
+            params=dict(type='directory')
+        )
+        assert e.code == 400
+
+
+# def _check_created(r, path, type='notebook'):
+#     assert r.code == 201
+#     assert r.headers['Location'] == 
+
+
+# async def test_create_untitled(fetch, contents, path, name):
+#     nbname = name+'.ipynb'
+#     nbpath = (path + '/' + nbname).lstrip('/')
+#     r = await fetch(
+#         'api', 'contents', nbpath,
+#         method='POST',
+#         body=json.dumps({'ext': '.ipynb'})
+#     )
+#     _check_created(r, path, type='notebook')

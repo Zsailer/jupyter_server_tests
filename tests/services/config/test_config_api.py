@@ -3,18 +3,20 @@ import pytest
 
 from jupyter_server.utils import url_path_join
 
+# Run all tests in this module using asyncio's event loop
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.gen_test
-def test_create_retrieve_config(fetch):
+
+async def test_create_retrieve_config(fetch):
     sample = {'foo': 'bar', 'baz': 73}
-    response = yield fetch(
+    response = await fetch(
         'api', 'config', 'example',
         method='PUT',
         body=json.dumps(sample)
     )
     assert response.code == 204
 
-    response2 = yield fetch(
+    response2 = await fetch(
         'api', 'config', 'example',
         method='GET',
     )
@@ -22,8 +24,7 @@ def test_create_retrieve_config(fetch):
     assert json.loads(response2.body) == sample
 
 
-@pytest.mark.gen_test
-def test_modify(fetch):
+async def test_modify(fetch):
     sample = {
         'foo': 'bar', 
         'baz': 73,
@@ -45,13 +46,13 @@ def test_modify(fetch):
         'sub': {'a': 8, 'd': 9}
     }
 
-    yield fetch(
+    await fetch(
         'api', 'config', 'example',
         method='PUT',
         body=json.dumps(sample)
     )
 
-    response2 = yield fetch(
+    response2 = await fetch(
         'api', 'config', 'example',
         method='PATCH',
         body=json.dumps(modified_sample)
@@ -61,9 +62,8 @@ def test_modify(fetch):
     assert json.loads(response2.body) == diff
     
 
-@pytest.mark.gen_test
-def test_get_unknown(fetch):
-    response = yield fetch(
+async def test_get_unknown(fetch):
+    response = await fetch(
         'api', 'config', 'nonexistant',
         method='GET',
     )

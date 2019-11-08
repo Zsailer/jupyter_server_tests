@@ -1,5 +1,6 @@
 import os
 import pytest
+import asyncio
 from binascii import hexlify
 
 import urllib.parse
@@ -10,7 +11,9 @@ from traitlets.config import Config
 from jupyter_server.serverapp import ServerApp
 from jupyter_server.utils import url_path_join
 
-pytest_plugins = ("pytest_tornado",)
+
+pytest_plugins = ("pytest_asyncio", "pytest_tornado")
+
 
 @pytest.fixture
 def serverapp(tmp_path, http_port):
@@ -59,6 +62,14 @@ def serverapp(tmp_path, http_port):
 
 
 @pytest.fixture
+def event_loop(io_loop):
+    """Enforce that asyncio and tornado use the same event loop."""
+    loop = io_loop.current().asyncio_loop
+    yield loop
+    loop.stop()
+
+
+@pytest.fixture
 def app(serverapp):
     return serverapp.web_app
 
@@ -83,6 +94,5 @@ def fetch(http_client, auth_header, base_url):
         # Add auth keys to header
         headers.update(auth_header)
         # Make request.
-        print(url)
         return http_client.fetch(url, headers=headers, **kwargs)
     return client_fetch
