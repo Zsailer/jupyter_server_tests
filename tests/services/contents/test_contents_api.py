@@ -12,6 +12,8 @@ from nbformat.v4 import (
 
 from jupyter_server.utils import url_path_join
 
+from base64 import encodebytes, decodebytes
+
 
 def notebooks_only(dir_model):
     return [nb for nb in dir_model['content'] if nb['type']=='notebook']
@@ -185,7 +187,6 @@ async def test_get_text_file_contents(fetch, contents, path, name):
         params=dict(content='1') 
     )
     model = json.loads(r.body)
-    print(model)
     assert model['name'] == txtname
     assert model['path'] == txtpath
     assert 'content' in model
@@ -210,3 +211,29 @@ async def test_get_text_file_contents(fetch, contents, path, name):
         )
 
 
+
+@pytest.mark.gen_test
+@pytest.mark.parametrize('path,name', dirs)
+async def test_get_binary_file_contents(fetch, contents, path, name):
+    blobname = name+'.blob'
+    blobpath = (path + '/' + blobname).lstrip('/')
+    r = await fetch(
+        'api', 'contents', blobpath,
+        method='GET',
+        params=dict(content='1') 
+    )
+    model = json.loads(r.body)
+    assert model['name'] == blobname
+    assert model['path'] == blobpath
+    assert 'content' in model
+    assert model['format'] == 'base64'
+    assert model['type'] == 'file'
+    data_out = decodebytes(model['content'].encode('ascii'))
+    data_in = name.encode('utf-8') + b'\xFF'
+    assert data_in == data_out
+
+    with pytest.raises(tornado.httpclient.HTTPClientError):
+        await fetch(
+            'api', 'contents', 'foo/q.txt',
+            method='GET',
+        )
