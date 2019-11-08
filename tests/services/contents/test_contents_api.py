@@ -594,3 +594,4 @@ async def test_rename(fetch, contents, contents_dir):
     nbnames = [name['name'] for name in listing['content']]
     assert 'z.ipynb' in nbnames
     assert 'a.ipynb' not in nbnames
+
