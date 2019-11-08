@@ -1,3 +1,4 @@
+import sys
 import json
 import pathlib
 import pytest
@@ -49,6 +50,7 @@ def contents_dir(tmp_path, serverapp):
 
 @pytest.fixture
 def contents(contents_dir):
+    # Create files in temporary directory
     for d, name in dirs:
         p = contents_dir / d
         p.mkdir(parents=True, exist_ok=True)
@@ -67,6 +69,11 @@ def contents(contents_dir):
         blob = name.encode('utf-8') + b'\xFF'
         blobname = p.joinpath('{}.blob'.format(name))
         blobname.write_bytes(blob)
+
+
+@pytest.fixture
+def folders():
+    return list(set(item[0] for item in dirs))
 
 
 @pytest.mark.parametrize('path,name', dirs)
@@ -517,3 +524,73 @@ async def test_delete(fetch, contents, contents_dir, path, name):
     )
     assert r.code == 204
 
+
+async def test_delete_dirs(fetch, contents, folders):
+    # Iterate over folders
+    for name in sorted(folders + ['/'], key=len, reverse=True):
+        r = await fetch(
+            'api', 'contents', name,
+            method='GET'
+        )
+        # Get JSON blobs for each content.
+        listing = json.loads(r.body)['content']
+        # Delete all content
+        for model in listing:
+            await fetch(
+                'api', 'contents', model['path'],
+                method='DELETE'
+            )
+    # Make sure all content has been deleted.
+    r = await fetch(
+        'api', 'contents',
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['content'] == []
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason="Disabled deleting non-empty dirs on Windows")
+async def test_delete_non_empty_dir(fetch, contents):
+    # Delete a folder
+    await fetch(
+        'api', 'contents', 'å b',
+        method='DELETE'
+    )
+    # Check that the folder was been deleted.
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        await fetch(
+            'api', 'contents', 'å b',
+            method='GET'
+        )
+        assert e.code == 404
+
+
+async def test_rename(fetch, contents, contents_dir):
+    path = 'foo'
+    name = 'a.ipynb'
+    new_name = 'z.ipynb'
+    # Rename the file
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='PATCH',
+        body=json.dumps({'path': path+'/'+new_name})
+    )
+    fpath = path+'/'+new_name
+    assert r.code == 200
+    location = '/api/contents/' + fpath
+    assert r.headers['Location'] == location
+    model = json.loads(r.body)
+    assert model['name'] == new_name
+    assert model['path'] == fpath
+    fpath = contents_dir / fpath
+    assert pathlib.Path(fpath).is_file()
+
+    # Check that the files have changed
+    r = await fetch(
+        'api', 'contents', path,
+        method='GET'
+    )
+    listing = json.loads(r.body)
+    nbnames = [name['name'] for name in listing['content']]
+    assert 'z.ipynb' in nbnames
+    assert 'a.ipynb' not in nbnames
