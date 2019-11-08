@@ -94,5 +94,6 @@ def fetch(http_client, auth_header, base_url):
         # Add auth keys to header
         headers.update(auth_header)
         # Make request.
+        print(url)
         return http_client.fetch(url, headers=headers, **kwargs)
     return client_fetch

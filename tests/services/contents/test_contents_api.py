@@ -256,17 +256,264 @@ async def test_get_bad_type(fetch):
         assert e.code == 400
 
 
-# def _check_created(r, path, type='notebook'):
-#     assert r.code == 201
-#     assert r.headers['Location'] == 
+def _check_created(r, contents_dir, path, name, type='notebook'):
+    fpath = path+'/'+name
+    assert r.code == 201
+    location = '/api/contents/' + tornado.escape.url_escape(fpath, plus=False)
+    assert r.headers['Location'] == location
+    model = json.loads(r.body)
+    assert model['name'] == name
+    assert model['path'] == fpath
+    assert model['type'] == type
+    path = contents_dir / fpath
+    if type == 'directory':
+        assert pathlib.Path(path).is_dir()
+    else:
+        assert pathlib.Path(path).is_file()
 
 
-# async def test_create_untitled(fetch, contents, path, name):
-#     nbname = name+'.ipynb'
-#     nbpath = (path + '/' + nbname).lstrip('/')
-#     r = await fetch(
-#         'api', 'contents', nbpath,
-#         method='POST',
-#         body=json.dumps({'ext': '.ipynb'})
-#     )
-#     _check_created(r, path, type='notebook')
+async def test_create_untitled(fetch, contents, contents_dir):
+    path = 'å b'
+    name = 'Untitled.ipynb'
+    r = await fetch(
+        'api', 'contents', path, 
+        method='POST',
+        body=json.dumps({'ext': '.ipynb'})
+    )
+    _check_created(r, contents_dir, path, name, type='notebook')
+
+    name = 'Untitled1.ipynb'
+    r = await fetch(
+        'api', 'contents', path, 
+        method='POST',
+        body=json.dumps({'ext': '.ipynb'})
+    )
+    _check_created(r, contents_dir, path, name, type='notebook')
+
+    path = 'foo/bar'
+    name = 'Untitled.ipynb'
+    r = await fetch(
+        'api', 'contents', path, 
+        method='POST',
+        body=json.dumps({'ext': '.ipynb'})
+    )
+    _check_created(r, contents_dir, path, name, type='notebook')
+
+
+async def test_create_untitled_txt(fetch, contents, contents_dir):
+    name = 'untitled.txt'
+    path = 'foo/bar'
+    r = await fetch(
+        'api', 'contents', path, 
+        method='POST',
+        body=json.dumps({'ext': '.txt'})
+    )
+    _check_created(r, contents_dir, path, name, type='file')
+
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['type'] == 'file'
+    assert model['format'] == 'text'
+    assert model['content'] == ''
+
+
+async def test_upload(fetch, contents, contents_dir):
+    nb = new_notebook()
+    nbmodel = {'content': nb, 'type': 'notebook'}
+    path = 'å b'
+    name = 'Upload tést.ipynb'
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='PUT',
+        body=json.dumps(nbmodel)
+    )
+    _check_created(r, contents_dir, path, name)
+
+
+async def test_mkdir_untitled(fetch, contents, contents_dir):
+    name = 'Untitled Folder'
+    path = 'å b'
+    r = await fetch(
+        'api', 'contents', path,
+        method='POST',
+        body=json.dumps({'type': 'directory'})
+    )
+    _check_created(r, contents_dir, path, name, type='directory')
+
+    name = 'Untitled Folder 1'
+    r = await fetch(
+        'api', 'contents', path,
+        method='POST',
+        body=json.dumps({'type': 'directory'})
+    )
+    _check_created(r, contents_dir, path, name, type='directory')
+
+    name = 'Untitled Folder'
+    path = 'foo/bar'
+    r = await fetch(
+        'api', 'contents', path,
+        method='POST',
+        body=json.dumps({'type': 'directory'})
+    )
+    _check_created(r, contents_dir, path, name, type='directory')
+
+
+async def test_mkdir(fetch, contents, contents_dir):
+    name = 'New ∂ir'
+    path = 'å b'
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='PUT',
+        body=json.dumps({'type': 'directory'})
+    )
+    _check_created(r, contents_dir, path, name, type='directory')
+
+
+async def test_mkdir_hidden_400(fetch):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        await fetch(
+            'api', 'contents', 'å b/.hidden',
+            method='PUT',
+            body=json.dumps({'type': 'directory'})
+        )
+        assert e.code == 400
+
+
+async def test_upload_txt(fetch, contents, contents_dir):
+    body = 'ünicode téxt'
+    model = {
+        'content' : body,
+        'format'  : 'text',
+        'type'    : 'file',
+    }
+    path = 'å b'
+    name = 'Upload tést.txt'
+    await fetch(
+        'api', 'contents', path, name,
+        method='PUT',
+        body=json.dumps(model)
+    )
+
+    # check roundtrip
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['type'] == 'file'
+    assert model['format'] == 'text'
+    assert model['path'] == path+'/'+name
+    assert model['content'] == body
+
+
+async def test_upload_b64(fetch, contents, contents_dir):
+    body = b'\xFFblob'
+    b64body = encodebytes(body).decode('ascii')
+    model = {
+        'content' : b64body,
+        'format'  : 'base64',
+        'type'    : 'file',
+    }
+    path = 'å b'
+    name = 'Upload tést.blob'
+    await fetch(
+        'api', 'contents', path, name,
+        method='PUT',
+        body=json.dumps(model)
+    )
+    # check roundtrip
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['type'] == 'file'
+    assert model['path'] == path+'/'+name
+    assert model['format'] == 'base64'
+    decoded = decodebytes(model['content'].encode('ascii'))
+    assert decoded == body
+
+
+async def test_copy(fetch, contents, contents_dir):
+    path = 'å b'
+    name = 'ç d.ipynb'
+    copy = 'ç d-Copy1.ipynb'
+    r = await fetch(
+        'api', 'contents', path,
+        method='POST',
+        body=json.dumps({'copy_from': path+'/'+name})
+    )
+    _check_created(r, contents_dir, path, copy, type='notebook')
+    
+    # Copy the same file name
+    copy2 = 'ç d-Copy2.ipynb'
+    r = await fetch(
+        'api', 'contents', path,
+        method='POST',
+        body=json.dumps({'copy_from': path+'/'+name})
+    )
+    _check_created(r, contents_dir, path, copy2, type='notebook')
+
+    # copy a copy.
+    copy3 = 'ç d-Copy3.ipynb'
+    r = await fetch(
+        'api', 'contents', path,
+        method='POST',
+        body=json.dumps({'copy_from': path+'/'+copy2})
+    )
+    _check_created(r, contents_dir, path, copy3, type='notebook')
+
+
+async def test_copy_path(fetch, contents, contents_dir):
+    path1 = 'foo'
+    path2 = 'å b'
+    name = 'a.ipynb'
+    copy = 'a-Copy1.ipynb'
+    r = await fetch(
+        'api', 'contents', path2,
+        method='POST',
+        body=json.dumps({'copy_from': path1+'/'+name})
+    )
+    _check_created(r, contents_dir, path2, name, type='notebook')
+
+    r = await fetch(
+        'api', 'contents', path2,
+        method='POST',
+        body=json.dumps({'copy_from': path1+'/'+name})
+    )
+    _check_created(r, contents_dir, path2, copy, type='notebook')
+
+
+async def test_copy_put_400(fetch, contents, contents_dir):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        await fetch(
+            'api', 'contents', 'å b/cøpy.ipynb',
+            method='PUT',
+            body=json.dumps({'copy_from': 'å b/ç d.ipynb'})
+        )
+        assert e.code == 400
+
+
+async def test_copy_dir_400(fetch, contents, contents_dir):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        await fetch(
+            'api', 'contents', 'foo',
+            method='POST',
+            body=json.dumps({'copy_from': 'å b'})
+        )
+        assert e.code == 400
+
+
+@pytest.mark.parametrize('path,name', dirs)
+async def test_delete(fetch, contents, contents_dir, path, name):
+    nbname = name+'.ipynb'
+    nbpath = (path + '/' + nbname).lstrip('/')
+    r = await fetch(
+        'api', 'contents', nbpath,
+        method='DELETE',
+    )
+    assert r.code == 204
+
