@@ -595,3 +595,245 @@ async def test_rename(fetch, contents, contents_dir):
     assert 'z.ipynb' in nbnames
     assert 'a.ipynb' not in nbnames
 
+
+async def test_checkpoints_follow_file(fetch, contents):
+    path = 'foo'
+    name = 'a.ipynb'
+    
+    # Read initial file.
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    
+    # Create a checkpoint of initial state
+    r = await fetch(
+        'api', 'contents', path, name, 'checkpoints',
+        method='POST',
+        allow_nonstandard_methods=True
+    )
+    cp1 = json.loads(r.body)
+    
+    # Modify file and save.
+    nbcontent = model['content']
+    nb = from_dict(nbcontent)
+    hcell = new_markdown_cell('Created by test')
+    nb.cells.append(hcell)
+    nbmodel = {'content': nb, 'type': 'notebook'}
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='PUT',
+        body=json.dumps(nbmodel)
+    )
+
+    # List checkpoints
+    r = await fetch(
+        'api', 'contents', path, name, 'checkpoints',
+        method='GET',
+    )
+    cps = json.loads(r.body)
+    assert cps == [cp1]
+
+    r = await fetch(
+        'api', 'contents', path, name,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    nbcontent = model['content']
+    nb = from_dict(nbcontent)
+    assert nb.cells[0].source == "Created by test"
+
+
+async def test_rename_existing(fetch, contents):
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        path = 'foo'
+        name = 'a.ipynb'
+        new_name = 'b.ipynb'
+        # Rename the file
+        r = await fetch(
+            'api', 'contents', path, name,
+            method='PATCH',
+            body=json.dumps({'path': path+'/'+new_name})
+        )
+        e.code == 409
+
+
+async def test_save(fetch, contents):
+    r = await fetch(
+        'api', 'contents', 'foo/a.ipynb',
+        method='GET'
+    )
+    model = json.loads(r.body)
+    nbmodel = model['content']
+    nb = from_dict(nbmodel)
+    nb.cells.append(new_markdown_cell('Created by test ³'))
+    nbmodel = {'content': nb, 'type': 'notebook'}
+    r = await fetch(
+        'api', 'contents', 'foo/a.ipynb',
+        method='PUT',
+        body=json.dumps(nbmodel)
+    )
+    # Round trip.
+    r = await fetch(
+        'api', 'contents', 'foo/a.ipynb',
+        method='GET'
+    )
+    model = json.loads(r.body)
+    newnb = from_dict(model['content'])
+    assert newnb.cells[0].source == 'Created by test ³'
+
+
+async def test_checkpoints(fetch, contents):
+    path = 'foo/a.ipynb'
+    resp = await fetch(
+        'api', 'contents', path,
+        method='GET' 
+    )
+    model = json.loads(resp.body)
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints',
+        method='POST',
+        allow_nonstandard_methods=True
+    )
+    assert r.code == 201
+    cp1 = json.loads(r.body)
+    assert set(cp1) == {'id', 'last_modified'}
+    assert r.headers['Location'].split('/')[-1] == cp1['id']
+
+    # Modify it.
+    nbcontent = model['content']
+    nb = from_dict(nbcontent)
+    hcell = new_markdown_cell('Created by test')
+    nb.cells.append(hcell)
+    
+    # Save it.
+    nbmodel = {'content': nb, 'type': 'notebook'}
+    resp = await fetch(
+        'api', 'contents', path,
+        method='PUT',
+        body=json.dumps(nbmodel)
+    )
+    
+    # List checkpoints
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints',
+        method='GET'
+    )
+    cps = json.loads(r.body)
+    assert cps == [cp1]
+
+    r = await fetch(
+        'api', 'contents', path,
+        method='GET' 
+    )
+    nbcontent = json.loads(r.body)['content']
+    nb = from_dict(nbcontent)
+    assert nb.cells[0].source == 'Created by test'
+
+    # Restore Checkpoint cp1
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints', cp1['id'],
+        method='POST',
+        allow_nonstandard_methods=True
+    )
+    assert r.code == 204
+
+    r = await fetch(
+        'api', 'contents', path,
+        method='GET'
+    )
+    nbcontent = json.loads(r.body)['content']
+    nb = from_dict(nbcontent)
+    assert nb.cells == []
+
+    # Delete cp1
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints', cp1['id'],
+        method='DELETE'
+    )
+    assert r.code == 204
+
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints',
+        method='GET'
+    )
+    cps = json.loads(r.body)
+    assert cps == []
+
+
+async def test_file_checkpoints(fetch, contents):
+    path = 'foo/a.txt'
+    resp = await fetch(
+        'api', 'contents', path,
+        method='GET' 
+    )
+    orig_content = json.loads(resp.body)['content']
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints',
+        method='POST',
+        allow_nonstandard_methods=True
+    )
+    assert r.code == 201
+    cp1 = json.loads(r.body)
+    assert set(cp1) == {'id', 'last_modified'}
+    assert r.headers['Location'].split('/')[-1] == cp1['id']
+
+    # Modify it.
+    new_content = orig_content + '\nsecond line'
+    model = {
+        'content': new_content,
+        'type': 'file',
+        'format': 'text',
+    }
+    
+    # Save it.
+    resp = await fetch(
+        'api', 'contents', path,
+        method='PUT',
+        body=json.dumps(model)
+    )
+    
+    # List checkpoints
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints',
+        method='GET'
+    )
+    cps = json.loads(r.body)
+    assert cps == [cp1]
+
+    r = await fetch(
+        'api', 'contents', path,
+        method='GET' 
+    )
+    content = json.loads(r.body)['content']
+    assert content == new_content
+
+    # Restore Checkpoint cp1
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints', cp1['id'],
+        method='POST',
+        allow_nonstandard_methods=True
+    )
+    assert r.code == 204
+
+    r = await fetch(
+        'api', 'contents', path,
+        method='GET'
+    )
+    restored_content = json.loads(r.body)['content']
+    assert restored_content == orig_content
+
+    # Delete cp1
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints', cp1['id'],
+        method='DELETE'
+    )
+    assert r.code == 204
+
+    r = await fetch(
+        'api', 'contents', path, 'checkpoints',
+        method='GET'
+    )
+    cps = json.loads(r.body)
+    assert cps == []
