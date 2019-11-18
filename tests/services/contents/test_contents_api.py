@@ -178,7 +178,7 @@ async def test_get_contents_no_such_file(fetch):
             'api', 'contents', 'foo/q.ipynb',
             method='GET',
         )
-        assert e.code == 404
+    assert e.value.code == 404
 
 
 @pytest.mark.parametrize('path,name', dirs)
@@ -203,7 +203,7 @@ async def test_get_text_file_contents(fetch, contents, path, name):
             'api', 'contents', 'foo/q.txt',
             method='GET',
         )
-        assert e.code == 404
+    assert e.value.code == 404
 
     with pytest.raises(tornado.httpclient.HTTPClientError) as e:
         await fetch(
@@ -214,7 +214,7 @@ async def test_get_text_file_contents(fetch, contents, path, name):
                 format='text'
             )
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
 
 
@@ -242,7 +242,7 @@ async def test_get_binary_file_contents(fetch, contents, path, name):
             'api', 'contents', 'foo/q.txt',
             method='GET',
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
 
 async def test_get_bad_type(fetch):
@@ -252,7 +252,7 @@ async def test_get_bad_type(fetch):
             method='GET',
             params=dict(type='file')
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
     with pytest.raises(tornado.httpclient.HTTPClientError) as e:
         await fetch(
@@ -260,7 +260,7 @@ async def test_get_bad_type(fetch):
             method='GET',
             params=dict(type='directory')
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
 
 def _check_created(r, contents_dir, path, name, type='notebook'):
@@ -386,7 +386,7 @@ async def test_mkdir_hidden_400(fetch):
             method='PUT',
             body=json.dumps({'type': 'directory'})
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
 
 async def test_upload_txt(fetch, contents, contents_dir):
@@ -501,7 +501,7 @@ async def test_copy_put_400(fetch, contents, contents_dir):
             method='PUT',
             body=json.dumps({'copy_from': 'å b/ç d.ipynb'})
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
 
 async def test_copy_dir_400(fetch, contents, contents_dir):
@@ -511,7 +511,7 @@ async def test_copy_dir_400(fetch, contents, contents_dir):
             method='POST',
             body=json.dumps({'copy_from': 'å b'})
         )
-        assert e.code == 400
+    assert e.value.code == 400
 
 
 @pytest.mark.parametrize('path,name', dirs)
@@ -562,7 +562,7 @@ async def test_delete_non_empty_dir(fetch, contents):
             'api', 'contents', 'å b',
             method='GET'
         )
-        assert e.code == 404
+    assert e.value.code == 404
 
 
 async def test_rename(fetch, contents, contents_dir):
@@ -656,7 +656,7 @@ async def test_rename_existing(fetch, contents):
             method='PATCH',
             body=json.dumps({'path': path+'/'+new_name})
         )
-        e.code == 409
+    assert e.value.code == 409
 
 
 async def test_save(fetch, contents):
