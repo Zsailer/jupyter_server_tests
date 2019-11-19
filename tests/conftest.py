@@ -16,7 +16,11 @@ pytest_plugins = ("pytest_asyncio", "pytest_tornado")
 
 
 @pytest.fixture
-def serverapp(tmp_path, http_port):
+def config():
+    return Config()
+
+@pytest.fixture
+def serverapp(tmp_path, http_port, config):
     def tmp(*parts):
         path = tmp_path.joinpath(*parts)
         if not path.exists():
@@ -29,7 +33,6 @@ def serverapp(tmp_path, http_port):
     runtime_dir = tmp('runtime')
     root_dir = tmp('root_dir')
 
-    config = Config()
     config.NotebookNotary.db_file = ':memory:'
 
     token = hexlify(os.urandom(4)).decode('ascii')

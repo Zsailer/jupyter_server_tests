@@ -2,13 +2,40 @@ import time
 import json
 import pytest
 
+
 import tornado
+import urllib.parse
+from tornado.escape import url_escape
 
 from jupyter_client.kernelspec import NATIVE_KERNEL_NAME
 
+from jupyter_server.utils import url_path_join
 
 # Run all tests in this module using asyncio's event loop
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture
+def ws_fetch(auth_header, http_port):
+    """fetch fixture that handles auth, base_url, and path"""
+    def client_fetch(*parts, headers={}, params={}, **kwargs):
+        # Handle URL strings
+        path = url_escape(url_path_join(*parts), plus=False)
+        urlparts = urllib.parse.urlparse('ws://localhost:{}'.format(http_port))
+        urlparts = urlparts._replace(
+            path=path,
+            query=urllib.parse.urlencode(params),
+        )
+        url = urlparts.geturl()
+        # Add auth keys to header
+        headers.update(auth_header)
+        # Make request.
+        req = tornado.httpclient.HTTPRequest(
+            url, 
+            headers=auth_header
+        )
+        return tornado.websocket.websocket_connect(req)
+    return client_fetch
 
 
 def expected_http_error(error, expected_code, expected_message=None):
@@ -178,7 +205,7 @@ async def test_kernel_handler(fetch):
     assert expected_http_error(e, 404, 'Kernel does not exist: ' + bad_id)
 
 
-async def test_connection(fetch, http_port, auth_header):
+async def test_connection(fetch, ws_fetch, http_port, auth_header):
     # Create kernel
     r = await fetch(
         'api', 'kernels',
@@ -198,11 +225,9 @@ async def test_connection(fetch, http_port, auth_header):
     assert model['connections'] == 0
 
     # Open a websocket connection.
-    req = tornado.httpclient.HTTPRequest(
-        'ws://localhost:{}/api/kernels/{}/channels'.format(http_port, kid), 
-        headers=auth_header
+    ws = await ws_fetch(
+        'api', 'kernels', kid, 'channels'
     )
-    ws = await tornado.websocket.websocket_connect(req)
     
     # Test that it was opened.
     r = await fetch(
@@ -211,8 +236,9 @@ async def test_connection(fetch, http_port, auth_header):
     )
     model = json.loads(r.body)
     assert model['connections'] == 1
-    ws.close()
 
+    # Close websocket
+    ws.close()
     # give it some time to close on the other side:
     for i in range(10):
         r = await fetch(
@@ -225,10 +251,14 @@ async def test_connection(fetch, http_port, auth_header):
         else:
             break
     
-    # Close websocket
     r = await fetch(
         'api', 'kernels', kid,
         method='GET'
     )
     model = json.loads(r.body)
     assert model['connections'] == 0
+
+
+async def test_config2(serverapp):
+    assert serverapp.kernel_manager.allowed_message_types == []
+
