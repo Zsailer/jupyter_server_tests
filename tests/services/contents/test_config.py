@@ -3,6 +3,7 @@ import pytest
 from traitlets.config import Config
 from jupyter_server.services.contents.filecheckpoints import GenericFileCheckpoints
 
+
 @pytest.fixture
 def config():
     c = Config()

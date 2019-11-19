@@ -10,6 +10,7 @@ from tornado.escape import url_escape
 from jupyter_client.kernelspec import NATIVE_KERNEL_NAME
 
 from jupyter_server.utils import url_path_join
+from ...conftest import expected_http_error
 
 # Run all tests in this module using asyncio's event loop
 pytestmark = pytest.mark.asyncio
@@ -36,17 +37,6 @@ def ws_fetch(auth_header, http_port):
         )
         return tornado.websocket.websocket_connect(req)
     return client_fetch
-
-
-def expected_http_error(error, expected_code, expected_message=None):
-    """Check that the error matches the expected output error."""
-    if expected_code != error.value.code:
-        return False
-    if expected_message:
-        message = json.loads(error.value.response.body)['message']
-        if expected_message != message:
-            return False
-    return True
 
 
 async def test_no_kernels(fetch):

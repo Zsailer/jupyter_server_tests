@@ -1,4 +1,6 @@
 import os
+import sys
+import json
 import pytest
 import asyncio
 from binascii import hexlify
@@ -8,6 +10,7 @@ from tornado.escape import url_escape
 
 from traitlets.config import Config
 
+import jupyter_core.paths
 from jupyter_server.serverapp import ServerApp
 from jupyter_server.utils import url_path_join
 
@@ -15,38 +18,78 @@ from jupyter_server.utils import url_path_join
 pytest_plugins = ("pytest_asyncio", "pytest_tornado")
 
 
-@pytest.fixture
-def config():
-    return Config()
+def mkdir(tmp_path, *parts):
+    path = tmp_path.joinpath(*parts)
+    if not path.exists():
+        path.mkdir(parents=True)
+    return path
+
+
+def expected_http_error(error, expected_code, expected_message=None):
+    """Check that the error matches the expected output error."""
+    if expected_code != error.value.code:
+        return False
+    if expected_message:
+        message = json.loads(error.value.response.body)['message']
+        if expected_message != message:
+            return False
+    return True
+
+
+config = pytest.fixture(lambda: Config())
+home_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'home'))
+data_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'data'))
+config_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'config'))
+runtime_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'runtime'))
+root_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'root_dir'))
+
 
 @pytest.fixture
-def serverapp(tmp_path, http_port, config):
-    def tmp(*parts):
-        path = tmp_path.joinpath(*parts)
-        if not path.exists():
-            path.mkdir(parents=True)
-        return str(path)
+def environ(
+    monkeypatch,
+    tmp_path,
+    home_dir,
+    data_dir,
+    config_dir,
+    runtime_dir,
+    root_dir
+    ):
+    monkeypatch.setenv('HOME', str(home_dir))
+    monkeypatch.setenv('PYTHONPATH', os.pathsep.join(sys.path))
+    monkeypatch.setenv('JUPYTER_NO_CONFIG', '1')
+    monkeypatch.setenv('JUPYTER_CONFIG_DIR', str(config_dir))
+    monkeypatch.setenv('JUPYTER_DATA_DIR', str(data_dir))
+    monkeypatch.setenv('JUPYTER_RUNTIME_DIR', str(runtime_dir))
+    monkeypatch.setattr(jupyter_core.paths, 'SYSTEM_JUPYTER_PATH', [mkdir(tmp_path, 'share', 'jupyter')])
+    monkeypatch.setattr(jupyter_core.paths, 'ENV_JUPYTER_PATH', [mkdir(tmp_path, 'env', 'share', 'jupyter')])
+    monkeypatch.setattr(jupyter_core.paths, 'SYSTEM_CONFIG_PATH', [mkdir(tmp_path, 'etc', 'jupyter')])
+    monkeypatch.setattr(jupyter_core.paths, 'ENV_CONFIG_PATH', [mkdir(tmp_path, 'env', 'etc', 'jupyter')])
 
-    home_dir = tmp('home')
-    data_dir = tmp('data')
-    config_dir = tmp('config')
-    runtime_dir = tmp('runtime')
-    root_dir = tmp('root_dir')
+
+@pytest.fixture
+def serverapp(
+    environ,
+    config,
+    http_port, 
+    tmp_path, 
+    home_dir,
+    data_dir,
+    config_dir,
+    runtime_dir,
+    root_dir
+    ):
 
     config.NotebookNotary.db_file = ':memory:'
-
     token = hexlify(os.urandom(4)).decode('ascii')
-
     url_prefix = '/'
-
     app = ServerApp(
         port=http_port,
         port_retries=0,
         open_browser=False,
-        config_dir=config_dir,
-        data_dir=data_dir,
-        runtime_dir=runtime_dir,
-        root_dir=root_dir,
+        config_dir=str(config_dir),
+        data_dir=str(data_dir),
+        runtime_dir=str(runtime_dir),
+        root_dir=str(root_dir),
         base_url=url_prefix,
         config=config,
         allow_root=True,

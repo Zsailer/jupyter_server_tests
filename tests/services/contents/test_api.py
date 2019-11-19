@@ -15,6 +15,8 @@ from jupyter_server.utils import url_path_join
 
 from base64 import encodebytes, decodebytes
 
+from ...conftest import expected_http_error
+
 
 # Run all tests in this module using asyncio's event loop
 pytestmark = pytest.mark.asyncio
