@@ -1,3 +1,4 @@
+import time
 import json
 import pytest
 
@@ -8,6 +9,17 @@ from jupyter_client.kernelspec import NATIVE_KERNEL_NAME
 
 # Run all tests in this module using asyncio's event loop
 pytestmark = pytest.mark.asyncio
+
+
+def expected_http_error(error, expected_code, expected_message=None):
+    """Check that the error matches the expected output error."""
+    if expected_code != error.value.code:
+        return False
+    if expected_message:
+        message = json.loads(error.value.response.body)['message']
+        if expected_message != message:
+            return False
+    return True
 
 
 async def test_no_kernels(fetch):
@@ -139,9 +151,84 @@ async def test_kernel_handler(fetch):
             'api', 'kernels', bad_id,
             method='GET'
         )
-    assert e.value.code == 404
+    assert expected_http_error(e, 404)
 
     # Delete kernel with id.
     r = await fetch(
-        'api', 'kernels', 
+        'api', 'kernels', kernel_id,
+        method='DELETE',
     )
+    assert r.code == 204
+
+    # Get list of kernels
+    r = await fetch(
+        'api', 'kernels',
+        method='GET'
+    )
+    kernel_list = json.loads(r.body)
+    assert kernel_list == []
+
+    # Request to delete a non-existent kernel id
+    bad_id = '111-111-111-111-111'
+    with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        r = await fetch(
+            'api', 'kernels', bad_id,
+            method='DELETE'
+        )
+    assert expected_http_error(e, 404, 'Kernel does not exist: ' + bad_id)
+
+
+async def test_connection(fetch, http_port, auth_header):
+    # Create kernel
+    r = await fetch(
+        'api', 'kernels',
+        method='POST',
+        body=json.dumps({
+            'name': NATIVE_KERNEL_NAME
+        })
+    )
+    kid = json.loads(r.body)['id']
+    
+    # Get kernel info
+    r = await fetch(
+        'api', 'kernels', kid,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['connections'] == 0
+
+    # Open a websocket connection.
+    req = tornado.httpclient.HTTPRequest(
+        'ws://localhost:{}/api/kernels/{}/channels'.format(http_port, kid), 
+        headers=auth_header
+    )
+    ws = await tornado.websocket.websocket_connect(req)
+    
+    # Test that it was opened.
+    r = await fetch(
+        'api', 'kernels', kid,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['connections'] == 1
+    ws.close()
+
+    # give it some time to close on the other side:
+    for i in range(10):
+        r = await fetch(
+            'api', 'kernels', kid,
+            method='GET'
+        )
+        model = json.loads(r.body)
+        if model['connections'] > 0:
+            time.sleep(0.1)
+        else:
+            break
+    
+    # Close websocket
+    r = await fetch(
+        'api', 'kernels', kid,
+        method='GET'
+    )
+    model = json.loads(r.body)
+    assert model['connections'] == 0
