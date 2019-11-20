@@ -99,21 +99,6 @@ def test_atomic_writing_umask(handle_umask, tmp_path):
     mode = stat.S_IMODE(os.stat(str(f2)).st_mode)
     assert mode == 0o620
 
-    # with TemporaryDirectory() as td:
-    #     os.umask(0o022)
-    #     f1 = os.path.join(td, '1')
-    #     with atomic_writing(f1) as f:
-    #         f.write(u'1')
-    #     mode = stat.S_IMODE(os.stat(f1).st_mode)
-    #     nt.assert_equal(mode, 0o644, '{:o} != 644'.format(mode))
-
-    #     os.umask(0o057)
-    #     f2 = os.path.join(td, '2')
-    #     with atomic_writing(f2) as f:
-    #         f.write(u'2')
-    #     mode = stat.S_IMODE(os.stat(f2).st_mode)
-    #     nt.assert_equal(mode, 0o620, '{:o} != 620'.format(mode))
-
 
 def test_atomic_writing_newlines(tmp_path):
     path = tmp_path / 'testfile'
