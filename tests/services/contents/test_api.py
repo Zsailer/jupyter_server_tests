@@ -244,25 +244,29 @@ async def test_get_binary_file_contents(fetch, contents, path, name):
             'api', 'contents', 'foo/q.txt',
             method='GET',
         )
-    assert expected_http_error(e, 400)
+    assert expected_http_error(e, 404)
 
 
-async def test_get_bad_type(fetch):
+async def test_get_bad_type(fetch, contents):
     with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        path = 'unicodé'
+        type = 'file'
         await fetch(
-            'api', 'contents', 'unicodé',
+            'api', 'contents', path,
             method='GET',
-            params=dict(type='file')
+            params=dict(type=type) # This should be a directory, and thus throw and error
         )
-    assert expected_http_error(e, 400)
+    assert expected_http_error(e, 400, '%s is a directory, not a %s' % (path, type))
 
     with pytest.raises(tornado.httpclient.HTTPClientError) as e:
+        path = 'unicodé/innonascii.ipynb'
+        type = 'directory'
         await fetch(
-            'api', 'contents', 'unicodé/innonascii.ipynb',
+            'api', 'contents', path,
             method='GET',
-            params=dict(type='directory')
+            params=dict(type=type) # This should be a file, and thus throw and error
         )
-    assert expected_http_error(e, 400)
+    assert expected_http_error(e, 400, '%s is not a directory' % path)
 
 
 def _check_created(r, contents_dir, path, name, type='notebook'):
