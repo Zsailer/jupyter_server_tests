@@ -32,7 +32,7 @@ def expected_http_error(error, expected_code, expected_message=None):
     if isinstance(e, tornado.web.HTTPError):
         if expected_code != e.status_code:
             return False
-        if expected_message != str(e):
+        if expected_message is not None and expected_message != str(e):
             return False
         return True
     elif any([
