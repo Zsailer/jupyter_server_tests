@@ -51,7 +51,6 @@ def notebook(root_dir):
 
     # Write file to tmp dir.
     nbfile = subdir / 'testnb.ipynb'
-    print(nbfile)
     nbfile.write_text(writes(nb, version=4))
 
 
