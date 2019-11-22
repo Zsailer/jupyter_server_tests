@@ -80,6 +80,6 @@ def test_is_hidden_win32(tmp_path):
     subdir1 = tmp_path / 'subdir'
     subdir1.mkdir()
     assert not is_hidden(str(subdir1), root)
-    r = ctypes.windll.kernel32.SetFileAttributesW(subdir1, 0x02)
+    ctypes.windll.kernel32.SetFileAttributesW(subdir1, 0x02)
     assert is_hidden(str(subdir1), root)
     assert is_file_hidden(str(subdir1))
