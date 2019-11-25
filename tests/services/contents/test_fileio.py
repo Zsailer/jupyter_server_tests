@@ -45,14 +45,14 @@ def test_atomic_writing(tmp_path):
         have_symlink = False
 
     with pytest.raises(CustomExc):
-        with atomic_writing(f1) as f:
+        with atomic_writing(str(f1)) as f:
             f.write('Failing write')
             raise CustomExc
 
     with io.open(f1, 'r') as f:
         assert f.read() == 'Before'
     
-    with atomic_writing(f1) as f:
+    with atomic_writing(str(f1)) as f:
         f.write('Overwritten')
 
     with io.open(f1, 'r') as f:
@@ -64,7 +64,7 @@ def test_atomic_writing(tmp_path):
 
     if have_symlink:
         # Check that writing over a file preserves a symlink
-        with atomic_writing(f2) as f:
+        with atomic_writing(str(f2)) as f:
             f.write(u'written from symlink')
         
         with io.open(f1, 'r') as f:
@@ -85,7 +85,7 @@ def test_atomic_writing_umask(handle_umask, tmp_path):
 
     os.umask(0o022)
     f1 = tmp_path / '1'
-    with atomic_writing(f1) as f:
+    with atomic_writing(str(f1)) as f:
         f.write('1')
     mode = stat.S_IMODE(os.stat(str(f1)).st_mode)
     assert mode == 0o644
@@ -93,7 +93,7 @@ def test_atomic_writing_umask(handle_umask, tmp_path):
     os.umask(0o057)
     f2 = tmp_path / '2'
 
-    with atomic_writing(f2) as f:
+    with atomic_writing(str(f2)) as f:
         f.write('2')
 
     mode = stat.S_IMODE(os.stat(str(f2)).st_mode)
@@ -122,7 +122,7 @@ def test_atomic_writing_newlines(tmp_path):
     assert read == lf
 
     # test newline=CRLF
-    with atomic_writing(path, newline='\r\n') as f:
+    with atomic_writing(str(path), newline='\r\n') as f:
         f.write(lf)
     with io.open(path, 'r', newline='') as f:
         read = f.read()
@@ -130,7 +130,7 @@ def test_atomic_writing_newlines(tmp_path):
 
     # test newline=no convert
     text = u'crlf\r\ncr\rlf\n'
-    with atomic_writing(path, newline='') as f:
+    with atomic_writing(str(path), newline='') as f:
         f.write(text)
     with io.open(path, 'r', newline='') as f:
         read = f.read()
