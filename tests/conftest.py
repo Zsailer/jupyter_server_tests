@@ -16,8 +16,6 @@ from jupyter_server.serverapp import ServerApp
 from jupyter_server.utils import url_path_join
 
 
-#pytest_plugins = ("pytest_asyncio", "pytest_tornado")
-
 pytest_plugins = ("pytest_tornasync")
 
 
@@ -50,13 +48,13 @@ def expected_http_error(error, expected_code, expected_message=None):
         return True
 
 
-config = pytest.fixture(lambda: Config())
+config = pytest.fixture(lambda: {})
 home_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'home'))
 data_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'data'))
 config_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'config'))
 runtime_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'runtime'))
 root_dir = pytest.fixture(lambda tmp_path: mkdir(tmp_path, 'root_dir'))
-
+argv = pytest.fixture(lambda: [])
 
 @pytest.fixture
 def environ(
@@ -81,9 +79,8 @@ def environ(
 
 
 @pytest.fixture
-def serverapp(
+def configurable_serverapp(    
     environ,
-    config,
     http_port, 
     tmp_path, 
     home_dir,
@@ -93,40 +90,54 @@ def serverapp(
     root_dir
     ):
 
-    config.NotebookNotary.db_file = ':memory:'
-    token = hexlify(os.urandom(4)).decode('ascii')
-    url_prefix = '/'
-    app = ServerApp(
-        port=http_port,
-        port_retries=0,
-        open_browser=False,
-        config_dir=str(config_dir),
-        data_dir=str(data_dir),
-        runtime_dir=str(runtime_dir),
-        root_dir=str(root_dir),
-        base_url=url_prefix,
-        config=config,
-        allow_root=True,
-        token=token,
-    )
-    app.init_signal = lambda : None
-    app.log.propagate = True
-    app.log.handlers = []
-    # Initialize app without httpserver
-    app.initialize(argv=[], new_httpserver=False)
-    app.log.propagate = True
-    app.log.handlers = []
-    # Start app without ioloop
-    app.start_app()
-    return app
+    def serverapp(
+        config={}, 
+        argv=[], 
+        environ=environ,
+        http_port=http_port, 
+        tmp_path=tmp_path, 
+        home_dir=home_dir,
+        data_dir=data_dir,
+        config_dir=config_dir,
+        runtime_dir=runtime_dir,
+        root_dir=root_dir,
+        **kwargs):
+        c = Config(config)
+        c.NotebookNotary.db_file = ':memory:'
+        token = hexlify(os.urandom(4)).decode('ascii')
+        url_prefix = '/'
+        app = ServerApp.instance(
+            port=http_port,
+            port_retries=0,
+            open_browser=False,
+            config_dir=str(config_dir),
+            data_dir=str(data_dir),
+            runtime_dir=str(runtime_dir),
+            root_dir=str(root_dir),
+            base_url=url_prefix,
+            config=c,
+            allow_root=True,
+            token=token,
+            **kwargs
+        )
+        app.init_signal = lambda : None
+        app.log.propagate = True
+        app.log.handlers = []
+        # Initialize app without httpserver
+        app.initialize(argv=argv, new_httpserver=False)
+        app.log.propagate = True
+        app.log.handlers = []
+        # Start app without ioloop
+        app.start_app()
+        return app
+
+    yield serverapp
+    ServerApp.clear_instance()
 
 
-# @pytest.fixture
-# def event_loop(io_loop):
-#     """Enforce that asyncio and tornado use the same event loop."""
-#     loop = io_loop.current()
-#     yield loop.asyncio_loop
-#     loop.clear_current()
+@pytest.fixture
+def serverapp(configurable_serverapp, config, argv):
+    return configurable_serverapp(config=config, argv=argv)
 
 
 @pytest.fixture
@@ -160,6 +171,5 @@ def fetch(http_server_client, auth_header, base_url):
         # Add auth keys to header
         headers.update(auth_header)
         # Make request.
-        print(url)
         return http_server_client.fetch(url, headers=headers, **kwargs)
     return client_fetch
