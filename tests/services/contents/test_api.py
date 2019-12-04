@@ -56,12 +56,12 @@ def contents(contents_dir):
         # Create a notebook
         nb = writes(new_notebook(), version=4)
         nbname = p.joinpath('{}.ipynb'.format(name))
-        nbname.write_text(nb)
+        nbname.write_text(nb, encoding='utf-8')
 
         # Create a text file
         txt = '{} text file'.format(name)
         txtname = p.joinpath('{}.txt'.format(name))
-        txtname.write_text(txt)
+        txtname.write_text(txt, encoding='utf-8')
 
         # Create a random blob
         blob = name.encode('utf-8') + b'\xFF'

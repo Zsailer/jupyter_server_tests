@@ -93,7 +93,7 @@ async def test_contents_manager(fetch, serverapp, root_dir):
             ])
         ]
     )
-    root_dir.joinpath('testnb.ipynb').write_text(writes(nb, version=4))
+    root_dir.joinpath('testnb.ipynb').write_text(writes(nb, version=4), encoding='utf-8')
     root_dir.joinpath('test.bin').write_bytes(b'\xff' + os.urandom(5))
     root_dir.joinpath('test.txt').write_text('foobar')
 
@@ -102,7 +102,7 @@ async def test_contents_manager(fetch, serverapp, root_dir):
         method='GET'
     )
     assert r.code == 200
-    assert 'print(2*6)' in r.body.decode()
+    assert 'print(2*6)' in r.body.decode('utf-8')
 
     r = await fetch(
         'files/test.bin',
