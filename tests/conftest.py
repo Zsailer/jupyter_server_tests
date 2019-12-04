@@ -92,11 +92,10 @@ def serverapp(
     runtime_dir,
     root_dir
     ):
-
     config.NotebookNotary.db_file = ':memory:'
     token = hexlify(os.urandom(4)).decode('ascii')
     url_prefix = '/'
-    app = ServerApp(
+    app = ServerApp.instance(
         port=http_port,
         port_retries=0,
         open_browser=False,
@@ -118,7 +117,8 @@ def serverapp(
     app.log.handlers = []
     # Start app without ioloop
     app.start_app()
-    return app
+    yield app
+    app.clear_instance()
 
 
 # @pytest.fixture

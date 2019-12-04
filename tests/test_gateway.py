@@ -10,6 +10,10 @@ from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError
 from ipython_genutils.py3compat import str_to_unicode
 from jupyter_server.serverapp import ServerApp
 
+from traitlets.config import Config
+
+from jupyter_server.gateway.managers import GatewayClient
+
 from unittest.mock import patch
 from io import StringIO
 from .conftest import expected_http_error
@@ -129,9 +133,13 @@ async def mock_gateway_request(url, **kwargs):
 
 
 mocked_gateway = patch('jupyter_server.gateway.managers.gateway_request', mock_gateway_request)
-mock_gateway_url = 'http://mock-gateway-server:8889'
+#mock_gateway_url = 'http://mock-gateway-server:8889'
 mock_http_user = 'alice'
 
+
+@pytest.fixture
+def mock_gateway_url(http_port):
+    return 'http://mock-gateway-server:{}'.format(http_port)
 
     #
     # @classmethod
@@ -159,28 +167,43 @@ mock_http_user = 'alice'
 
 
 @pytest.fixture
-def gateway_env(monkeypatch):
+def init_gateway(monkeypatch, mock_gateway_url):
+    GatewayClient.clear_instance()
     monkeypatch.setenv('JUPYTER_GATEWAY_URL', mock_gateway_url)
     monkeypatch.setenv('JUPYTER_GATEWAY_HTTP_USER', mock_http_user)
     monkeypatch.setenv('JUPYTER_GATEWAY_REQUEST_TIMEOUT', '44.4')
     monkeypatch.setenv('JUPYTER_GATEWAY_CONNECT_TIMEOUT', '44.4')
+    yield 
+    GatewayClient.clear_instance()
 
 
-async def test_gateway_cli_options():
-    app = ServerApp()
-    app.initialize(["--gateway-url='" + mock_gateway_url + "'",
-                    "--GatewayClient.http_user='" + mock_http_user + "'",
-                    '--GatewayClient.connect_timeout=44.4',
-                    '--GatewayClient.request_timeout=44.4'])
-
-    assert app.gateway_config.gateway_enabled is True
-    assert app.gateway_config.url == mock_gateway_url
-    assert app.gateway_config.http_user == mock_http_user
-    assert app.gateway_config.connect_timeout == app.gateway_config.request_timeout
-    assert app.gateway_config.connect_timeout == 44.4
+@pytest.fixture
+def config(mock_gateway_url):
+    return Config({
+        'GatewayClient': {
+            'url': mock_gateway_url,
+            'http_user': mock_http_user,
+            'connect_timeout': 44.4,
+            'request_timeout': 44.4
+        } 
+    })
 
 
-async def test_gateway_env_options(gateway_env, serverapp):
+# async def test_gateway_cli_options():
+#     app = ServerApp()
+#     app.initialize(["--gateway-url='" + mock_gateway_url + "'",
+#                     "--GatewayClient.http_user='" + mock_http_user + "'",
+#                     '--GatewayClient.connect_timeout=44.4',
+#                     '--GatewayClient.request_timeout=44.4'])
+
+#     assert app.gateway_config.gateway_enabled is True
+#     assert app.gateway_config.url == mock_gateway_url
+#     assert app.gateway_config.http_user == mock_http_user
+#     assert app.gateway_config.connect_timeout == app.gateway_config.request_timeout
+#     assert app.gateway_config.connect_timeout == 44.4
+
+
+async def test_gateway_env_options(init_gateway, serverapp, mock_gateway_url):
     assert serverapp.gateway_config.gateway_enabled is True
     assert serverapp.gateway_config.url == mock_gateway_url
     assert serverapp.gateway_config.http_user == mock_http_user
@@ -188,7 +211,7 @@ async def test_gateway_env_options(gateway_env, serverapp):
     assert serverapp.gateway_config.connect_timeout == 44.4
 
 
-async def test_gateway_class_mappings(gateway_env, serverapp):
+async def test_gateway_class_mappings(init_gateway, serverapp):
     # Ensure appropriate class mappings are in place.
     assert serverapp.kernel_manager_class.__name__ == 'GatewayKernelManager'
     assert serverapp.session_manager_class.__name__ == 'GatewaySessionManager'
