@@ -1,4 +1,5 @@
 import os
+import sys
 import ctypes
 import pytest
 
@@ -73,7 +74,7 @@ def test_is_hidden(tmp_path):
     assert not is_file_hidden(subdir56, os.stat(subdir56))
 
 
-@skip_if_not_win32
+@pytest.mark.skipif(sys.platform != "win32", reason="Test is not windows.")
 def test_is_hidden_win32(tmp_path):
     root = str(tmp_path)
     root = cast_unicode(root)
