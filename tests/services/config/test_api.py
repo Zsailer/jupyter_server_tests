@@ -3,9 +3,6 @@ import pytest
 
 from jupyter_server.utils import url_path_join
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
 
 async def test_create_retrieve_config(fetch):
     sample = {'foo': 'bar', 'baz': 73}

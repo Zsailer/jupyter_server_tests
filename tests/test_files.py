@@ -9,9 +9,6 @@ from nbformat.v4 import (new_notebook,
                          new_markdown_cell, new_code_cell,
                          new_output)
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
 
 async def test_hidden_files(fetch, serverapp, root_dir):
     not_hidden = [

@@ -1,9 +1,6 @@
 import json
 import pytest
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
 async def test_list_formats(fetch):
     r = await fetch(
         'api', 'nbconvert',

@@ -12,9 +12,6 @@ from jupyter_client.kernelspec import NATIVE_KERNEL_NAME
 from jupyter_server.utils import url_path_join
 from ...conftest import expected_http_error
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 def ws_fetch(auth_header, http_port):

@@ -18,10 +18,6 @@ from base64 import encodebytes, decodebytes
 from ...conftest import expected_http_error
 
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
-
 def notebooks_only(dir_model):
     return [nb for nb in dir_model['content'] if nb['type']=='notebook']
 

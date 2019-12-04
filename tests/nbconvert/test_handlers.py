@@ -27,10 +27,6 @@ b'\x08\xd7c\x90\xfb\xcf\x00\x00\x02\\\x01\x1e.~d\x87\x00\x00\x00\x00IEND\xaeB`\x
 ).decode('ascii')
 
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
-
 @pytest.fixture
 def notebook(root_dir):
     # Build sub directory.

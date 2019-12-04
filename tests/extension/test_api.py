@@ -3,10 +3,6 @@ import pytest
 from jupyter_server.serverapp import ServerApp
 from .conftest import MockExtension
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
-
 # ------------------ Start tests -------------------
 
 async def test_handler(fetch, extended_serverapp):

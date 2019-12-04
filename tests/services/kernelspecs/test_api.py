@@ -7,9 +7,6 @@ from jupyter_client.kernelspec import NATIVE_KERNEL_NAME
 
 from ...conftest import expected_http_error
 
-# Run all tests in this module using asyncio's event loop
-pytestmark = pytest.mark.asyncio
-
 
 sample_kernel_json = {
     'argv':['cat', '{connection_file}'],

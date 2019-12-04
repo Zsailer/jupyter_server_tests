@@ -16,7 +16,9 @@ from jupyter_server.serverapp import ServerApp
 from jupyter_server.utils import url_path_join
 
 
-pytest_plugins = ("pytest_asyncio", "pytest_tornado")
+#pytest_plugins = ("pytest_asyncio", "pytest_tornado")
+
+pytest_plugins = ("pytest_tornasync")
 
 
 def mkdir(tmp_path, *parts):
@@ -119,12 +121,12 @@ def serverapp(
     return app
 
 
-@pytest.fixture
-def event_loop(io_loop):
-    """Enforce that asyncio and tornado use the same event loop."""
-    loop = io_loop.current()
-    yield loop.asyncio_loop
-    loop.clear_current()
+# @pytest.fixture
+# def event_loop(io_loop):
+#     """Enforce that asyncio and tornado use the same event loop."""
+#     loop = io_loop.current()
+#     yield loop.asyncio_loop
+#     loop.clear_current()
 
 
 @pytest.fixture
@@ -138,19 +140,26 @@ def auth_header(serverapp):
 
 
 @pytest.fixture
-def fetch(http_client, auth_header, base_url):
+def http_port(http_server_port):
+    return http_server_port[-1]
+
+
+@pytest.fixture
+def base_url(http_server_port):
+    return '/'
+
+
+@pytest.fixture
+def fetch(http_server_client, auth_header, base_url):
     """fetch fixture that handles auth, base_url, and path"""
     def client_fetch(*parts, headers={}, params={}, **kwargs):
         # Handle URL strings
-        path = url_escape(url_path_join(*parts), plus=False)
-        urlparts = urllib.parse.urlparse(base_url)
-        urlparts = urlparts._replace(
-            path=path,
-            query=urllib.parse.urlencode(params),
-        )
-        url = urlparts.geturl()
+        path_url = url_escape(url_path_join(base_url, *parts), plus=False)
+        params_url = urllib.parse.urlencode(params)
+        url = path_url + "?" + params_url
         # Add auth keys to header
         headers.update(auth_header)
         # Make request.
-        return http_client.fetch(url, headers=headers, **kwargs)
+        print(url)
+        return http_server_client.fetch(url, headers=headers, **kwargs)
     return client_fetch
