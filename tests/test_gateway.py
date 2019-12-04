@@ -152,13 +152,17 @@ async def test_gateway_env_options(init_gateway, serverapp):
     assert serverapp.gateway_config.connect_timeout == 44.4
 
 
-async def test_gateway_cli_options():
+async def test_gateway_cli_options(configurable_serverapp):
+    argv = [
+        "--gateway-url='" + mock_gateway_url + "'",
+        "--GatewayClient.http_user='" + mock_http_user + "'",
+        '--GatewayClient.connect_timeout=44.4',
+        '--GatewayClient.request_timeout=44.4'
+    ]
+
+
     GatewayClient.clear_instance()
-    app = ServerApp()
-    app.initialize(["--gateway-url='" + mock_gateway_url + "'",
-                    "--GatewayClient.http_user='" + mock_http_user + "'",
-                    '--GatewayClient.connect_timeout=44.4',
-                    '--GatewayClient.request_timeout=44.4'])
+    app = configurable_serverapp(argv=argv)
 
     assert app.gateway_config.gateway_enabled is True
     assert app.gateway_config.url == mock_gateway_url
