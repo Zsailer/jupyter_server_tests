@@ -61,7 +61,7 @@ def contents(contents_dir):
         # Create a text file
         txt = '{} text file'.format(name)
         txtname = p.joinpath('{}.txt'.format(name))
-        txtname.write_text(txt)
+        txtname.write_text(txt, encoding='utf-8')
 
         # Create a random blob
         blob = name.encode('utf-8') + b'\xFF'
